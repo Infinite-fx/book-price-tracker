@@ -69,6 +69,15 @@ def test_compare_finds_changes_new_and_removed():
     assert [b.url for b in cmp.removed] == ["gone"]
 
 
+def test_partial_run_does_not_report_other_categories_as_removed():
+    old = {"a": book("a", 10.0), "x": Book("x", "X", "Other", 5.0, 3, True)}
+    new = {"a": book("a", 10.0)}  # quick run that scraped only category "Cat"
+    cmp = compare(old, new)
+    assert cmp.removed == [] and cmp.new == [] and cmp.changed == []
+    # ...and the following full run must not call "x" new
+    assert compare(new, old).new == []
+
+
 def test_first_run_reports_nothing_as_new():
     cmp = compare({}, {"a": book("a", 1.0)}, has_previous=False)
     assert cmp.changed == [] and cmp.new == [] and cmp.removed == []

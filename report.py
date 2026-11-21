@@ -48,7 +48,7 @@ def build_report(books: list[Book], cmp: Comparison, path: str) -> None:
     ws = wb.active
     ws.title = "Catalog"
     _table(ws, ["Title", "Category", "Price", "Rating", "In stock", "Price change"],
-           [60, 22, 11, 9, 10, 14])
+           [60, 22, 11, 10, 11, 17])
     for b in sorted(books, key=lambda b: b.title.lower()):
         change = changes_by_url.get(b.url)
         ws.append([b.title, b.category, b.price, "★" * b.rating,

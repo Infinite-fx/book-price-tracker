@@ -85,6 +85,13 @@ def latest_run_id(conn: sqlite3.Connection) -> int | None:
 
 
 def compare(old: dict[str, Book], new: dict[str, Book], has_previous: bool = True) -> Comparison:
+    # Compare only categories present in BOTH runs. Otherwise a quick partial run
+    # (--categories 3) after a full one would report ~900 books as "removed",
+    # and the next full run would report them as "new".
+    common = {b.category for b in old.values()} & {b.category for b in new.values()}
+    old = {url: b for url, b in old.items() if b.category in common}
+    new = {url: b for url, b in new.items() if b.category in common}
+
     changed = [
         PriceChange(b.title, b.category, url, old[url].price, b.price)
         for url, b in new.items()
