@@ -6,7 +6,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from scraper import Book, parse_categories, parse_listing  # noqa: E402
-from storage import compare  # noqa: E402
+from storage import Run, compare, connect, previous_run, save_run  # noqa: E402
 
 PAGE_URL = "https://books.toscrape.com/catalogue/category/books/poetry_23/index.html"
 
@@ -59,25 +59,59 @@ def test_parse_categories():
     assert cats[0][1] == "https://books.toscrape.com/catalogue/category/books/travel_2/index.html"
 
 
+FULL = Run(1, None)
+
+
+def partial(*cats: str) -> Run:
+    return Run(2, set(cats))
+
+
 def test_compare_finds_changes_new_and_removed():
     old = {"a": book("a", 10.0), "b": book("b", 20.0), "gone": book("gone", 5.0)}
     new = {"a": book("a", 8.0), "b": book("b", 20.0), "fresh": book("fresh", 7.0)}
-    cmp = compare(old, new)
+    cmp = compare(old, new, FULL, FULL)
     assert [(c.url, c.diff) for c in cmp.changed] == [("a", -2.0)]
     assert round(cmp.changed[0].diff_percent, 2) == -0.2
     assert [b.url for b in cmp.new] == ["fresh"]
     assert [b.url for b in cmp.removed] == ["gone"]
 
 
-def test_partial_run_does_not_report_other_categories_as_removed():
+def test_brand_new_category_counts_as_new_after_full_run():
+    old = {"a": book("a", 10.0)}
+    new = {"a": book("a", 10.0), "n": Book("n", "N", "Brand New", 9.0, 3, True)}
+    assert [b.url for b in compare(old, new, FULL, FULL).new] == ["n"]
+
+
+def test_partial_run_does_not_report_unchecked_categories_as_removed():
     old = {"a": book("a", 10.0), "x": Book("x", "X", "Other", 5.0, 3, True)}
-    new = {"a": book("a", 10.0)}  # quick run that scraped only category "Cat"
-    cmp = compare(old, new)
+    new = {"a": book("a", 10.0)}  # quick run that checked only "Cat"
+    cmp = compare(old, new, FULL, partial("Cat"))
     assert cmp.removed == [] and cmp.new == [] and cmp.changed == []
-    # ...and the following full run must not call "x" new
-    assert compare(new, old).new == []
 
 
-def test_first_run_reports_nothing_as_new():
-    cmp = compare({}, {"a": book("a", 1.0)}, has_previous=False)
+def test_partial_run_still_finds_removed_and_new_inside_its_categories():
+    old = {"a": book("a", 10.0), "gone": book("gone", 5.0)}
+    new = {"a": book("a", 10.0), "fresh": book("fresh", 7.0)}
+    cmp = compare(old, new, FULL, partial("Cat"))
+    assert [b.url for b in cmp.removed] == ["gone"]
+    assert [b.url for b in cmp.new] == ["fresh"]
+
+
+def test_full_run_after_partial_does_not_call_unchecked_books_new():
+    old = {"a": book("a", 10.0)}
+    new = {"a": book("a", 10.0), "x": Book("x", "X", "Other", 5.0, 3, True)}
+    assert compare(old, new, partial("Cat"), FULL).new == []
+
+
+def test_first_run_reports_nothing():
+    cmp = compare({}, {"a": book("a", 1.0)}, None, FULL)
     assert cmp.changed == [] and cmp.new == [] and cmp.removed == []
+    assert cmp.has_previous is False
+
+
+def test_full_run_is_compared_with_last_full_run(tmp_path):
+    conn = connect(str(tmp_path / "h.db"))
+    full = save_run(conn, [book("a", 1.0)], None)
+    save_run(conn, [book("a", 1.0)], ["Cat"])  # quick test run in between
+    assert previous_run(conn, full=True).id == full.id
+    assert previous_run(conn, full=False).scope == {"Cat"}

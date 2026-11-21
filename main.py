@@ -34,18 +34,20 @@ def main() -> None:
                         help="fake some price changes in the previous run (demo only)")
     args = parser.parse_args()
 
-    books = scrape(args.categories)
+    books, checked_categories = scrape(args.categories)
     print(f"Collected {len(books)} books")
+    full = args.categories is None
+    scope = None if full else checked_categories
 
     conn = storage.connect(args.db)
-    previous_id = storage.latest_run_id(conn)  # must be read BEFORE saving the new run
-    if args.demo and previous_id:
-        simulate_changes(conn, previous_id)
-    run_id = storage.save_run(conn, books)
+    prev = storage.previous_run(conn, full)  # must be found BEFORE saving the new run
+    if args.demo and prev:
+        simulate_changes(conn, prev.id)
+    run = storage.save_run(conn, books, scope)
 
-    old = storage.load_run(conn, previous_id) if previous_id else {}
-    new = storage.load_run(conn, run_id)
-    cmp = storage.compare(old, new, has_previous=previous_id is not None)
+    old = storage.load_run(conn, prev) if prev else {}
+    new = storage.load_run(conn, run)
+    cmp = storage.compare(old, new, prev, run)
     print(f"Price changes: {len(cmp.changed)}, new: {len(cmp.new)}, removed: {len(cmp.removed)}")
 
     build_report(books, cmp, args.out)

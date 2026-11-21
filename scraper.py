@@ -74,8 +74,11 @@ def parse_listing(html: str, page_url: str, category: str) -> tuple[list[Book], 
     return books, next_url
 
 
-def scrape(max_categories: int | None = None) -> list[Book]:
-    """Walk through all categories (and all their pages) and collect books."""
+def scrape(max_categories: int | None = None) -> tuple[list[Book], list[str]]:
+    """Walk through categories (and all their pages) and collect books.
+
+    Returns the books and the names of the categories that were checked.
+    """
     session = requests.Session()
     categories = parse_categories(fetch(session, BASE_URL), BASE_URL)
     if max_categories:
@@ -87,4 +90,4 @@ def scrape(max_categories: int | None = None) -> list[Book]:
         while url:
             page_books, url = parse_listing(fetch(session, url), url, name)
             books.extend(page_books)
-    return books
+    return books, [name for name, _ in categories]

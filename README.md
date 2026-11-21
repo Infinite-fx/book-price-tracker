@@ -39,6 +39,16 @@ python main.py --out prices.xlsx   # custom report name
 Run it again later (manually, or daily via cron / Task Scheduler) and the
 **Price changes** sheet will show what changed since the previous run.
 
+### How runs are compared
+
+Each run remembers what it covered: the whole shop, or only some categories (`--categories N`).
+
+- **New products** — books that weren't there before, including books from a brand-new category.
+- **Removed products** — reported only for categories the new run actually checked, so a quick
+  partial run never claims that the rest of the shop disappeared.
+- A full run is always compared with the **previous full run**, so quick test runs in between
+  don't break daily tracking.
+
 > **Note on `--demo`.** The sandbox shop never changes its prices, so the
 > "Price changes" sheet would always be empty. `python main.py --demo` randomly shifts ~5%
 > of prices in the *previous* saved run before comparing, just to show how the report looks.
